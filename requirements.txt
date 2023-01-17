@@ -1,0 +1,2 @@
+# Put any extra dependencies here
+gradio==3.16.1
