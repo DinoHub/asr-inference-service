@@ -1,2 +1,2 @@
 # Put any extra dependencies here
-gradio==3.16.1
+gradio==2.9.4

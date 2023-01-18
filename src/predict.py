@@ -1,35 +1,86 @@
+import os
 import logging
-from nemo.core.config import hydra_runner
 from typing import Any, List, Optional, Union
 
-from config import TranscriptionConfig
 import torch
-
-from nemo.collections.asr.models import ASRModel
-from nemo.utils import model_utils
-import pytorch_lightning as pl
-
+import librosa
 import gradio as gr
+import soundfile as sf
+import pytorch_lightning as pl
+from nemo.utils import model_utils
+from nemo.collections.asr.models import ASRModel
+from nemo.collections.nlp.models import PunctuationCapitalizationModel
 
-inputs: List[Union[str, gr.components.Component]] = ["text"]
-outputs: List[Union[str, gr.components.Component]] = ["text"]
+from config import config, BaseConfig
 
-examples: Optional[Union[List[Any], List[List[Any]], str]] = None
+''' CPU/GPU Configurations '''
+if torch.cuda.is_available():
+    DEVICE = [0]  # use 0th CUDA device
+    ACCELERATOR = 'gpu'
+else:
+    DEVICE = 1
+    ACCELERATOR = 'cpu'
 
-@hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
-def initialize_asr_model(cfg: TranscriptionConfig) -> TranscriptionConfig:
+MAP_LOCATION: str = torch.device('cuda:{}'.format(DEVICE[0]) if ACCELERATOR == 'gpu' else 'cpu')
 
-    map_location = 
+''' Gradio Input/Output Configurations '''
+inputs: Union[str, gr.inputs.Audio] = gr.inputs.Audio(source='upload', type='filepath')
+outputs: str = 'text'
 
-    model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
-        classpath = model_cfg.target  # original class path
-        imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
-        logging.info(f"Restoring model : {imported_class.__name__}")
-        asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location,
+''' Helper functions '''
+def initialize_asr_model(cfg: BaseConfig) -> ASRModel:
+
+    model_cfg = ASRModel.restore_from(restore_path=cfg.asr_model_path, return_config=True)
+    classpath = model_cfg.target  # original class path
+    imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
+    logging.info(f"Restoring model : {imported_class.__name__}")
+    asr_model = imported_class.restore_from(
+        restore_path=cfg.asr_model_path, map_location=MAP_LOCATION,
+    )
+
+    trainer = pl.Trainer(devices=DEVICE, accelerator=ACCELERATOR)
+    asr_model.set_trainer(trainer)
+    asr_model = asr_model.eval()
+
+    return asr_model
+
+def initialize_punctuation_model(cfg: BaseConfig) -> PunctuationCapitalizationModel:
+
+    punctuation_model = PunctuationCapitalizationModel.restore_from(cfg.punctuation_model_path, map_location=MAP_LOCATION)
+    punctuation_model = punctuation_model.eval()
+
+    return punctuation_model
+
+def preprocess_audio(audio_path: str, sample_rate: int = 16000, mono: bool = True, output_filename: str = 'output.wav') -> str:
+
+    # loads and resamples to input sample_rate and convert to mono/stereo
+    arr, sr = librosa.load(audio_path, sr=sample_rate, mono=mono)
+
+    base_dir = os.path.dirname(audio_path)
+    output_path = os.path.join(base_dir, output_filename)
+
+    sf.write(output_path, arr, sample_rate)
+
+    return output_path
+
+''' Initialize models '''
+asr_model = initialize_asr_model(config)
+punctuation_model = initialize_punctuation_model(config)
+
+''' Main prediction function '''
+def predict(audio_path: str) -> str:
+
+    output_path = preprocess_audio(audio_path, sample_rate=16000, mono=True)
+
+    with torch.no_grad():
+
+        transcriptions = asr_model.transcribe(
+            paths2audio_files=[output_path,],
+            batch_size=1,
+            num_workers=0,
+            return_hypotheses=False,
         )
 
+        punctuated_transcriptions = punctuation_model.add_punctuation_capitalization(transcriptions)
 
-def predict(name: str) -> str:
-    # TODO: Implement this!
-    return f"Hello {name}"
+    return punctuated_transcriptions[0]
