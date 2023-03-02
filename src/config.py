@@ -10,6 +10,6 @@ class BaseConfig(BaseSettings):
     # KNative assigns a $PORT environment variable to the container
     port: int = Field(default=8080, env="PORT",description="Gradio App Server Port")
     asr_model_path: str = 'models/stt_en_conformer_ctc_large.nemo'
-    punctuation_model_path: str = 'models/punctuation_en_distilbert.nemo'
+    punctuation_model_path: str = 'models/punctuation_en_bert.nemo'
 
 config = BaseConfig()

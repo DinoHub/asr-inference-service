@@ -24,7 +24,8 @@ else:
 MAP_LOCATION: str = torch.device('cuda:{}'.format(DEVICE[0]) if ACCELERATOR == 'gpu' else 'cpu')
 
 ''' Gradio Input/Output Configurations '''
-inputs: Union[str, gr.inputs.Audio] = gr.inputs.Audio(source='upload', type='filepath')
+inputs: Union[str, gr.Audio] = gr.Audio(source='upload', type='filepath')
+# inputs: Union[str, gr.inputs.Audio] = gr.inputs.Audio(source='upload', type='filepath')
 outputs: str = 'text'
 
 ''' Helper functions '''

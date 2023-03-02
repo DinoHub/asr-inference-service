@@ -12,8 +12,8 @@ if __name__ == "__main__":
         predict,
         inputs=inputs,
         outputs=outputs,
-        title="Singlish ASR Inference Service",
-        description="Singlish-Accented ASR Inference Service for AI App Store",
+        title="ASR Inference Service",
+        description="ASR Inference Service for AI App Store",
     )
     
     app.launch(
